@@ -63,6 +63,12 @@ def parse_measurements(data):
 
 
 def measurement_to_db(measurements):
+    # The live packet contains multiple 16-bit fields. The displayed dB value is
+    # the third word in observed vendor-app packets; earlier words can also look
+    # like plausible dB values on some hosts/devices.
+    if len(measurements) >= 3 and 3000 <= measurements[2] <= 13000:
+        return measurements[2] / 100
+
     db_candidates = [value / 100 for value in measurements if 3000 <= value <= 13000]
     if not db_candidates:
         db_candidates = [value / 10 for value in measurements if 300 <= value <= 1300]
@@ -85,6 +91,9 @@ def read_db(dev):
     measurements = parse_measurements(data)
     if not measurements:
         raise TimeoutError("no measurement response from device")
+    if os.environ.get("NOISE_METER_DEBUG"):
+        print(f"raw: {data}", flush=True)
+        print(f"measurements: {measurements}", flush=True)
 
     return measurement_to_db(measurements)
 

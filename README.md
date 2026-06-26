@@ -5,6 +5,7 @@ Simply Python library and script to use with the __JOY-IT JT-SLM01__ sound level
 The repository contains:
 
 - `noise_meter.py`: _reusable library_ code for connecting to the meter and reading measurements.
+- `noise_log.py`: CSV logging and summary JSON helpers.
 - `test-noise.py`: interactive script that prints one `dB(A)` reading.
 
 Licensed under MIT. See `LICENSE`.
@@ -44,6 +45,31 @@ Run the interactive sampling script:
 ```bash
 python test-noise.py
 ```
+
+Run with CSV logging enabled:
+
+```bash
+python test-noise.py --csv
+```
+
+When `--csv` is used, the script asks for a log folder name and creates:
+
+```text
+out/<folder-name>/measurements.csv
+out/<folder-name>/summary.json
+```
+
+The CSV file is created immediately and each new sample is appended as it is measured.
+
+The summary JSON is written when the script exits and contains:
+
+- `started_at`
+- `finished_at`
+- `duration_seconds`
+- `sample_count`
+- `min_db_a`
+- `max_db_a`
+- `avg_db_a`
 
 Expected behavior:
 
@@ -145,6 +171,6 @@ python test-noise.py
 ## Notes
 
 - The script is currently focused on live readings only.
-- It does not save history to a file yet.
+- Use `--csv` to save sampled values and a summary JSON.
 - If the vendor application is open, it may hold the HID device and block access from Python.
 - Startup may still be slower than the vendor application on the first run because `hid.enumerate(...)` on Windows can be slow.

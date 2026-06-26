@@ -10,6 +10,7 @@ READ_SIZE = 64
 READ_TIMEOUT_MS = 1000
 START_COMMAND = [0xAA, 0x55, 0x00, 0x03, 0x02]
 LIVE_COMMAND = [0xAA, 0x55, 0x01, 0x03, 0x03]
+PATH_CACHE_FILE = ".noise-meter-hid-path"
 
 
 def write_report(dev, payload):
@@ -99,18 +100,54 @@ def sleep_until_next_sample(start_time, interval_seconds=1.0):
     return False
 
 
-def main():
-    path = os.environ.get("HID_PATH")
-    if path is None:
-        print(f"enumerating {VID:04x}:{PID:04x}", flush=True)
-        devices = hid.enumerate(VID, PID)
-        if not devices:
-            raise RuntimeError(f"device {VID:04x}:{PID:04x} not found")
-        path = devices[0]["path"]
+def load_cached_path():
+    try:
+        with open(PATH_CACHE_FILE, "rb") as file:
+            path = file.read().strip()
+    except FileNotFoundError:
+        return None
 
+    return path or None
+
+
+def save_cached_path(path):
+    with open(PATH_CACHE_FILE, "wb") as file:
+        file.write(path if isinstance(path, bytes) else path.encode())
+
+
+def open_device():
+    env_path = os.environ.get("HID_PATH")
+    if env_path:
+        paths = [env_path]
+    else:
+        cached_path = load_cached_path()
+        paths = [cached_path] if cached_path else []
+
+    for path in paths:
+        dev = hid.device()
+        print(f"opening cached path={path!r}", flush=True)
+        try:
+            dev.open_path(path)
+            return dev
+        except OSError as err:
+            dev.close()
+            print(f"cached open failed: {err}", flush=True)
+
+    print(f"enumerating {VID:04x}:{PID:04x}", flush=True)
+    devices = hid.enumerate(VID, PID)
+    if not devices:
+        raise RuntimeError(f"device {VID:04x}:{PID:04x} not found")
+
+    path = devices[0]["path"]
     dev = hid.device()
     print(f"opening {VID:04x}:{PID:04x} path={path!r}", flush=True)
     dev.open_path(path)
+    save_cached_path(path)
+    return dev
+
+
+def main():
+    dev = open_device()
 
     try:
         print("flushing pending packets", flush=True)

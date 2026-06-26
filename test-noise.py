@@ -1,6 +1,6 @@
 import time
 import os
-
+import msvcrt
 import hid
 
 
@@ -60,6 +60,45 @@ def parse_measurements(data):
     return []
 
 
+def read_db(dev):
+    write_report(dev, LIVE_COMMAND)
+
+    data = []
+    for _ in range(5):
+        data = read_packet(dev)
+        if data:
+            break
+        write_report(dev, LIVE_COMMAND)
+
+    measurements = parse_measurements(data)
+    if not measurements:
+        raise TimeoutError("no measurement response from device")
+
+    db_candidates = [value / 100 for value in measurements if 3000 <= value <= 13000]
+    if not db_candidates:
+        db_candidates = [value / 10 for value in measurements if 300 <= value <= 1300]
+    if not db_candidates:
+        raise ValueError(f"no plausible dB value in {measurements}")
+
+    return db_candidates[0]
+
+
+def stop_requested():
+    while msvcrt.kbhit():
+        if msvcrt.getch().lower() == b"x":
+            return True
+    return False
+
+
+def sleep_until_next_sample(start_time, interval_seconds=1.0):
+    deadline = start_time + interval_seconds
+    while time.monotonic() < deadline:
+        if stop_requested():
+            return True
+        time.sleep(0.05)
+    return False
+
+
 def main():
     path = os.environ.get("HID_PATH")
     if path is None:
@@ -82,30 +121,16 @@ def main():
         write_report(dev, START_COMMAND)
         time.sleep(0.2)
 
-        print("requesting measurement", flush=True)
-        write_report(dev, LIVE_COMMAND)
-        print("waiting for response", flush=True)
-        data = []
-        for _ in range(5):
-            data = read_packet(dev)
-            print("raw:", data)
-            if data:
+        print("sampling every 1s; press x to stop", flush=True)
+        while not stop_requested():
+            sample_start = time.monotonic()
+            try:
+                print(f"dB(A): {read_db(dev):.1f}", flush=True)
+            except TimeoutError as err:
+                print(f"read timeout: {err}", flush=True)
+
+            if sleep_until_next_sample(sample_start):
                 break
-            write_report(dev, LIVE_COMMAND)
-
-        measurements = parse_measurements(data)
-        if not measurements:
-            raise TimeoutError("no measurement response from device")
-
-        print("values:", measurements)
-
-        db_candidates = [value / 100 for value in measurements if 3000 <= value <= 13000]
-        if not db_candidates:
-            db_candidates = [value / 10 for value in measurements if 300 <= value <= 1300]
-        if not db_candidates:
-            raise ValueError(f"no plausible dB value in {measurements}")
-
-        print("dB(A):", db_candidates[0])
     finally:
         dev.close()
 

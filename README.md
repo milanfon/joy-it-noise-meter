@@ -7,9 +7,13 @@ The repository contains:
 - `noise_meter.py`: _reusable library_ code for connecting to the meter and reading measurements.
 - `test-noise.py`: interactive script that prints one `dB(A)` reading.
 
+Licensed under MIT. See `LICENSE`.
+
 The HID protocol in this project was reverse engineered from the official `EnvironmentalTester.exe` application.
 
 This project was created for my personal use, so most of the features are tailored for it.
+
+Author: Milan Horínek
 
 ## Requirements
 
